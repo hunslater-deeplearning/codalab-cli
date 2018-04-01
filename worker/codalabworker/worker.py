@@ -115,9 +115,16 @@ class Worker(object):
         self._image_manager.stop()
         self._dependency_manager.stop()
 
-    def _get_runs(self):
+    def _get_runs_for_checkin(self):
         with synchronized(self):
-            return self._runs
+            result = {
+                bundle_uuid: {
+                    'status': run_state.status,
+                    'start_time': run_state.start_time,
+                    'info': run_state.info
+                } for bundle_uuid, run_state in self._runs.items()
+            }
+            return result
 
     def _get_installed_memory_bytes(self):
         try:
@@ -148,7 +155,8 @@ class Worker(object):
             'gpus': len(self._gpuset),
             'memory_bytes': self._get_memory_bytes(),
             'dependencies': self._dependency_manager.list_all(),
-            'runs': self._get_runs() #TODO: filter out shit we don't want (like cpuset and gpuset)
+            'hostname': socket.gethostname(),
+            'runs': self._get_runs_for_checkin()
         }
         response = self._bundle_service.checkin(self.id, request)
         if response:

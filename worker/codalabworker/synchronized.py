@@ -9,6 +9,15 @@ import thread
 import threading
 import types
 
+class function_wrapper(object_proxy):
+    def __init__(self, wrapped):
+       super(function_wrapper, self).__init__(wrapped)
+    def __get__(self, instance, owner):
+        wrapped = self.wrapped.__get__( instance, owner)
+        return bound_function_wrapper(wrapped)
+    def __call__(self, *args, **kwargs):
+        return self.wrapped(*args, **kwargs)
+
 def synchronized(wrapped):
     def _synchronized_lock(owner):
         lock = vars(owner).get('_synchronized_lock', None)
