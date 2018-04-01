@@ -25,6 +25,7 @@ class DockerImageManager(BaseDependencyManager):
         self._state_committer = state_committer
         self._docker = docker
         self._images = {} # digest -> DockerImageState
+        self._downloading = {}
         self._max_images_bytes = max_images_bytes
 
         self._stop = False

@@ -40,11 +40,13 @@ class LocalFileSystemDependencyManager(BaseDependencyManager):
 
     def _save_state(self):
         with synchronized(self):
-            self._state_committer.commit(self._dependencies)
+            dependencies = {'{}+{}'.format(*k): v for k, v in self._dependencies.items()}
+            self._state_committer.commit(dependencies)
 
     def _load_state(self):
         with synchronized(self):
-            self._dependencies = self._state_committer.load()
+            dependencies = self._state_committer.load()
+            self._dependencies = {tuple(k.split('+')): v for k, v in dependencies.items()}
             self.reset()
             logger.info('{} dependencies in cache.'.format(len(self._dependencies)))
 
