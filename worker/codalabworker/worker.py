@@ -10,6 +10,7 @@ import time
 import traceback
 import re
 import json
+import socket
 
 from bundle_service_client import BundleServiceException
 from dependency_manager import LocalFileSystemDependencyManager
@@ -56,6 +57,7 @@ class Worker(object):
         self._docker = docker
         self._docker_network_prefix = docker_network_prefix
         self._stop = False
+        self._should_upgrade = False
 
         self._cpuset = cpuset
         self._gpuset = gpuset

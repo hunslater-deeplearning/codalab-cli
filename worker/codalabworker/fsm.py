@@ -1,6 +1,7 @@
 from collections import namedtuple
 import threading
 import os
+import tempfile
 
 import pyjson
 from synchronized import synchronized
