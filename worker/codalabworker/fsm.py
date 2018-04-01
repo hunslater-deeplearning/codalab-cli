@@ -1,5 +1,6 @@
 from collections import namedtuple
 import threading
+import os
 
 import pyjson
 from synchronized import synchronized
@@ -18,8 +19,11 @@ class JsonStateCommitter(BaseStateCommitter):
     def __init__(self, json_path, schema=None):
         self._state_file = json_path
 
-    def load(self):
-        return pyjson.load(json_path)
+    def load(self, default={}):
+        if not os.path.exists(self._state_file):
+            return default
+        with open(self._state_file) as json_data:
+            return pyjson.load(json_data)
 
     def commit(self, state):
         """ Write out the state in JSON format to a temporary file and rename it into place """
