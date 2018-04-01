@@ -37,7 +37,7 @@ def checkin(worker_id):
         request.json['cpus'], request.json['gpus'], request.json['memory_bytes'],
         request.json['dependencies'])
 
-    for uuid, run in request.json['runs']:
+    for uuid, run in request.json['runs'].items():
         bundle = local.model.get_bundle(uuid)
         local.model.resume_bundle(bundle, request.user.user_id, worker_id,
                                 request.json['hostname'], run['start_time'])

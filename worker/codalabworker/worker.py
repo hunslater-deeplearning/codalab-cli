@@ -12,6 +12,7 @@ import re
 import json
 import socket
 import httplib
+import sys
 
 from bundle_service_client import BundleServiceException
 from dependency_manager import LocalFileSystemDependencyManager
@@ -196,14 +197,6 @@ class Worker(object):
                     self._exiting = True
                 self._should_upgrade = True
 
-    @staticmethod
-    def read_run_missing(bundle_service, worker, socket_id):
-        message = {
-            'error_code': httplib.INTERNAL_SERVER_ERROR,
-            'error_message': BUNDLE_NO_LONGER_RUNNING_MESSAGE,
-        }
-        bundle_service.reply(worker.id, socket_id, message)
-
     def _assign_cpu_and_gpu_sets(self, request_cpus, request_gpus):
         """
         Propose a cpuset and gpuset to a bundle based on given requested resources.
@@ -257,10 +250,20 @@ class Worker(object):
 
             with synchronized(self):
                 self._runs[bundle_uuid] = run_state
+        else:
+            print >>sys.stderr, "Not allowed to start"
 
     def _get_run(self, uuid):
         with synchronized(self):
             return self._runs.get(uuid, None)
+
+    @staticmethod
+    def read_run_missing(bundle_service, worker, socket_id):
+        message = {
+            'error_code': httplib.INTERNAL_SERVER_ERROR,
+            'error_message': BUNDLE_NO_LONGER_RUNNING_MESSAGE,
+        }
+        bundle_service.reply(worker.id, socket_id, message)
 
     def _read(self, socket_id, uuid, path, read_args):
         def read(self, run_state, socket_id, path, read_args):
@@ -272,6 +275,7 @@ class Worker(object):
                 self._bundle_service.reply(self.id, socket_id, message)
 
             dep_paths = set([dep['child_path'] for dep in run_state.bundle['dependencies']])
+            bundle_uuid = run_state.bundle['uuid']
             try:
                 read_type = read_args['type']
                 if read_type == 'get_target_info':
@@ -281,7 +285,7 @@ class Worker(object):
                     else:
                         try:
                             target_info = get_target_info(
-                                run_state.bundle_path, self._uuid, path, read_args['depth'])
+                                run_state.bundle_path, bundle_uuid, path, read_args['depth'])
                         except PathException as e:
                             reply_error(httplib.BAD_REQUEST, e.message)
                             return
@@ -294,7 +298,7 @@ class Worker(object):
                     self._bundle_service.reply(self.id, socket_id, {'target_info': target_info})
                 else:
                     try:
-                        final_path = get_target_path(run_state.bundle_path, run_state.bundle['uuid'], path)
+                        final_path = get_target_path(run_state.bundle_path, bundle_uuid, path)
                     except PathException as e:
                         reply_error(httplib.BAD_REQUEST, e.message)
                         return
@@ -370,7 +374,7 @@ class Worker(object):
     def _process_runs(self):
         """ First, filter out finished runs then transition each run """
         with synchronized(self): # filter out finished runs
-            self._runs = {k: v for k, v in self._runs.items() if v.status == RunStatus.FINISHED}
+            self._runs = {k: v for k, v in self._runs.items() if v.status != RunStatus.FINISHED}
             for bundle_uuid in self._runs.keys():
                 run_state = self._runs[bundle_uuid]
                 self._runs[bundle_uuid] = self._transition_run_state(run_state)
