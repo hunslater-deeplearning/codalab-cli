@@ -34,7 +34,7 @@ class JsonStateCommitter(BaseStateCommitter):
         with tempfile.NamedTemporaryFile('w', prefix=basename, dir=dirname, delete=False) as f:
             pyjson.dump(state, f)
             f.flush()
-            shutil.copy2(f.name, self._state_file)
+            shutil.move(f.name, self._state_file)
 
 class DependencyStatus(object):
     # reset: -> STARTING

@@ -3,10 +3,10 @@ import json
 import logging
 import os
 import threading
+import traceback
 import time
 
 from file_util import get_path_size, remove_path
-from docker_image_manager import DockerImageManager
 from formatting import size_str
 from synchronized import synchronized
 from fsm import (
@@ -79,13 +79,11 @@ class LocalFileSystemDependencyManager(BaseDependencyManager):
 
     def _reset_dependency_state(self, dependency_state):
         status = dependency_state.status
-        fns = [val for key, val in vars().items() if key == '_reset_dependency_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_reset_dependency_state_from_' + status)(dependency_state)
 
     def _transition_dependency_state(self, dependency_state):
         status = dependency_state.status
-        fns = [val for key, val in vars().items() if key == '_transition_dependency_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_transition_dependency_state_from_' + status)(dependency_state)
 
     def has(self, dependency): # dependency = (parent_uuid, parent_path)
         with synchronized(self):
@@ -138,7 +136,7 @@ class LocalFileSystemDependencyManager(BaseDependencyManager):
     def _transition_dependency_state_from_STARTING(self, dependency_state):
         dependency = dependency_state.dependency
         return dependency_state._replace(
-                status=RunStatus.DOWNLOADING, path=self._assign_path(dependency))
+                status=DependencyStatus.DOWNLOADING, path=self._assign_path(dependency))
 
     def _reset_dependency_state_from_DOWNLOADING(self, dependency_state):
         return dependency_state

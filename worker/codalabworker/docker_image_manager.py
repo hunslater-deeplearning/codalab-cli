@@ -12,6 +12,7 @@ from fsm import (
     BaseDependencyManager,
     JsonStateCommitter,
     BaseStateHandler,
+    DependencyStatus
 )
 
 logger = logging.getLogger(__name__)
@@ -64,13 +65,11 @@ class DockerImageManager(BaseDependencyManager):
 
     def _reset_image_state(self, image_state):
         status = image_state.status
-        fns = [val for key, val in vars().items() if key == '_reset_image_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_reset_image_state_from_' + status)(image_state)
 
     def _transition_image_state(self, image_state):
         status = image_state.status
-        fns = [val for key, val in vars().items() if key == '_transition_image_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_transition_image_state_from_' + status)(image_state)
 
     def reset(self):
         with synchronized(self):
@@ -105,13 +104,13 @@ class DockerImageManager(BaseDependencyManager):
     def _reset_image_state_from_STARTING(self, image_state):
         return image_state
 
-    def _transition_dependency_state_from_STARTING(self, image_state):
-        return image_state._replace(status=RunStatus.DOWNLOADING)
+    def _transition_image_state_from_STARTING(self, image_state):
+        return image_state._replace(status=DependencyStatus.DOWNLOADING)
 
-    def _reset_dependency_state_from_DOWNLOADING(self, image_state):
+    def _reset_image_state_from_DOWNLOADING(self, image_state):
         return image_state
 
-    def _transition_dependency_state_from_DOWNLOADING(self, image_state):
+    def _transition_image_state_from_DOWNLOADING(self, image_state):
         def download():
             def update_status_message_and_check_killed(status_message):
                 with synchronized(self):
@@ -144,14 +143,14 @@ class DockerImageManager(BaseDependencyManager):
         else:
             return image_state._replace(status=DependencyStatus.FAILED)
 
-    def _reset_dependency_state_from_READY(self, image_state):
+    def _reset_image_state_from_READY(self, image_state):
         return image_state
 
-    def _transition_dependency_state_from_READY(self, image_state):
+    def _transition_image_state_from_READY(self, image_state):
         return image_state
 
-    def _reset_dependency_state_from_FAILED(self, image_state):
+    def _reset_image_state_from_FAILED(self, image_state):
         return image_state
 
-    def _transition_dependency_state_from_FAILED(self, image_state):
+    def _transition_image_state_from_FAILED(self, image_state):
         return image_state

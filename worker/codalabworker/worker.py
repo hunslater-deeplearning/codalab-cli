@@ -36,6 +36,7 @@ from synchronized import synchronized
 from fsm import (
     JsonStateCommitter,
     BaseStateHandler,
+    DependencyStatus
 )
 
 
@@ -63,6 +64,9 @@ class Worker(object):
         self._state_committer = state_committer
         self._dependency_manager = dependency_manager
         self._image_manager = image_manager
+
+        dependency_manager.run()
+        image_manager.run()
 
         self.id = id
         self._tag = tag
@@ -235,8 +239,8 @@ class Worker(object):
         Otherwise, create RunState and put into self._runs
         """
 
-        bundle_path = self._dependency_manager.get_run_path(bundle['uuid'])
         bundle_uuid = bundle['uuid']
+        bundle_path = self._dependency_manager.get_run_path(bundle_uuid)
         now = time.time()
         start_message = {
             'hostname': socket.gethostname(),
@@ -245,7 +249,7 @@ class Worker(object):
         if self._bundle_service.start_bundle(self.id, bundle_uuid, start_message):
 
             run_state = RunState(
-                    RunStatus.STARTING, bundle, bundle_path, resources,
+                    RunStatus.STARTING, bundle, os.path.realpath(bundle_path), resources,
                     now, None, None, None, None)
 
             with synchronized(self):
@@ -290,7 +294,7 @@ class Worker(object):
                             reply_error(httplib.BAD_REQUEST, e.message)
                             return
 
-                        if not path and read_args['depth'] > 0:
+                        if target_info is not None and not path and read_args['depth'] > 0:
                             target_info['contents'] = [
                                 child for child in target_info['contents']
                                 if child['name'] not in dep_paths]
@@ -381,13 +385,11 @@ class Worker(object):
 
     def _reset_run_state(self, run_state):
         status = run_state.status
-        fns = [val for key, val in vars().items() if key == '_reset_run_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_reset_run_state_from_' + status)(run_state)
 
     def _transition_run_state(self, run_state):
         status = run_state.status
-        fns = [val for key, val in vars().items() if key == '_transition_run_state_from_' + status]
-        return fns[0]
+        return getattr(self, '_transition_run_state_from_' + status)(run_state)
 
     def _reset_run_state_from_STARTING(self, run_state):
         return run_state
@@ -402,7 +404,7 @@ class Worker(object):
         #TODO: download status message?
 
         all_ready = True
-        for entry in run_state.dependencies:
+        for entry in run_state.bundle['dependencies']:
             dependency = (entry['parent_uuid'], entry['parent_path'])
             dependency_state = self._dependency_manager.get(dependency)
             all_ready = all_ready and (dependency_state.status == DependencyStatus.READY)
@@ -425,7 +427,7 @@ class Worker(object):
         os.mkdir(run_state.bundle_path)
 
         dependencies = []
-        docker_dependencies_path = '/' + self._uuid + '_dependencies'
+        docker_dependencies_path = '/' + run_state.bundle['uuid'] + '_dependencies'
         for dep in run_state.bundle['dependencies']:
             child_path = os.path.normpath(os.path.join(run_state.bundle_path, dep['child_path']))
             if not child_path.startswith(run_state.bundle_path):
@@ -506,7 +508,7 @@ class Worker(object):
                     remove_path(child_path)
 
                 # Upload results
-                logger.debug('Uploading results for run with UUID %s', self._uuid)
+                logger.debug('Uploading results for run with UUID %s', bundle_uuid)
                 updater = self._throttled_updater()
                 def update_status(bytes_uploaded):
                     updater('Uploading results: %s done (archived size)' %
